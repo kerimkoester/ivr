@@ -46,6 +46,27 @@ class image_converter:
     # Uncomment if you want to save the image
     cv2.imwrite('image_copy.png', cv_image)
 
+    #cv2.imshow('window', cv_image)
+    #cv2.waitKey(3)
+    
+    #def rgb_thresh(image,color,tol):
+      #image = np.array(image)
+      #height,width,_ = np.shape(image)
+      #output = np.zeros([height,width])
+      #for row in range(height):
+        #for col in range(width):
+          #cond0=(image[row][col][0]<color[0]+tol) & (image[row][col][0]>color[0]-tol)
+          #cond1=(image[row][col][1]<color[1]+tol) & (image[row][col][1]>color[1]-tol)
+          #cond2=(image[row][col][2]<color[2]+tol) & (image[row][col][2]>color[2]-tol)
+          #if cond0 & cond1 & cond2:
+            #output[row][col]=1
+      #return output
+
+    #tol1 = 30
+    #color1 = np.array([tol1,tol1,255-tol1])
+    
+    #im1 = rgb_thresh(cv_image,color1,tol1)
+
     cv2.imshow('window', cv_image)
     cv2.waitKey(3)
 
