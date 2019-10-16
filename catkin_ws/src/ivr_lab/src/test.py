@@ -59,6 +59,9 @@ distance = centerposition_YBGR[1:,:]-centerposition_YBGR[:-1,:]
 avg_distance = np.sum(np.sqrt(np.sum(distance**2,axis=1)))/3
 
 convert = 3/avg_distance
+print(centerposition_YBGR)
+centerposition_YBGR -= 400
+print(centerposition_YBGR)
 centerposition_YBGR *= convert
 
 arm0 = np.array([0,-3])
@@ -69,8 +72,10 @@ angle1 = np.arccos(np.dot(arm0,arm1)/np.linalg.norm(arm0)/np.linalg.norm(arm1))
 angle2 = np.arccos(np.dot(arm1,arm2)/np.linalg.norm(arm1)/np.linalg.norm(arm2))
 angle3 = np.arccos(np.dot(arm2,arm3)/np.linalg.norm(arm2)/np.linalg.norm(arm3))
 
-print(angle1,angle2,angle3)
 
+print(angle1,angle2,angle3)
+print(centerposition_YBGR)
+print(combined_G.shape)
 
 
 
