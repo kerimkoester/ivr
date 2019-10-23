@@ -128,7 +128,6 @@ class image_converter:
 
     def get_quadrant(lower_blob,upper_blob):
         vec = upper_blob-lower_blob
-        print(vec)
         if vec[0]<=0:
             if vec[1]<=0:
                 return 0
@@ -150,7 +149,7 @@ class image_converter:
         M = cv2.getRotationMatrix2D((cols/2,rows/2),angle,1)
         return cv2.warpAffine(im,M,(cols,rows))
 
-    def find_angle(template,image,lower_blob,upper_blob,N_steps=100):
+    def find_angle(template,image,lower_blob,upper_blob,N_steps=400):
         image_inv = cv2.bitwise_not(image)
         image_dist = cv2.distanceTransform(image_inv,cv2.DIST_L2,cv2.DIST_MASK_5)
         min_angle = get_quadrant(lower_blob,upper_blob)-20
@@ -165,15 +164,18 @@ class image_converter:
         return min_angle*2*np.pi/360,min_dist
     
     angle1,_ = find_angle(link1,link1_cropped,YBGR[0],YBGR[1])
+    if angle1 > np.pi:
+        angle1-=2*np.pi
     angle2,_ = find_angle(link2,link2_cropped,YBGR[1],YBGR[2])
     angle3,_ = find_angle(link3,link3_cropped,YBGR[2],YBGR[3])
     
     angle2 = angle2-angle1
-    if angle2<0:
-        angle2 += 2*np.pi
+    if angle2 > np.pi:
+        angle2-=2*np.pi
     angle3 = angle3-angle2-angle1
-    if angle3<0:
-        angle3 += 2*np.pi
+    if angle3 > np.pi:
+        angle3-=2*np.pi
+    
     print(angle1,angle2,angle3)
 
 
