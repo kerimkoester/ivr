@@ -37,6 +37,8 @@ class image_converter:
     self.time_trajectory = rospy.get_time()
     self.first_time = rospy.get_time()
     self.first_position = self.trajectory()
+    self.jointangle = np.array([-np.pi/4,0,0])
+    self.error_first = 0
   
   # Define a circular trajectory (for lab 3)
   def trajectory(self):
@@ -54,13 +56,14 @@ class image_converter:
       print(e)
       
       
-      # loading template for links as binary image (used in lab 2)
+    # loading template for links as binary image (used in lab 2)
     self.link1 = cv2.inRange(cv2.imread('link1.png', 1), (200, 200, 200), (255, 255, 255))
     self.link2 = cv2.inRange(cv2.imread('link2.png', 1), (200, 200, 200), (255, 255, 255))
     self.link3 = cv2.inRange(cv2.imread('link3.png', 1), (200, 200, 200), (255, 255, 255))   
     
     # Perform image processing task (your code goes here)
     
+    #get images of single links (cropped) and center position of blobs
     def isolate_links_and_crop(img):
         #Isolate links
         ret,thresh_B = cv2.threshold(img[:,:,0],50,255,cv2.THRESH_BINARY_INV)
@@ -140,10 +143,12 @@ class image_converter:
         link2_cropped = thresh_tot[int(link2[1]-50):int(link2[1]+50),int(link2[0]-30):int(link2[0]+30)]
         link3_cropped = thresh_tot[int(link3[1]-50):int(link3[1]+50),int(link3[0]-30):int(link3[0]+30)]
         return thresh_tot,link1_cropped,link2_cropped,link3_cropped, centerposition_YBGR
-     
     link_tot,link1_cropped,link2_cropped,link3_cropped, YBGR = isolate_links_and_crop(cv_image)
+    
+    #save copy of image
     cv2.imwrite("image_copy.png",cv_image)
-
+    
+    #get quadrant where links are pointing at using the blob position
     def get_quadrant(lower_blob,upper_blob):
         vec = upper_blob-lower_blob
         if vec[0]<=0:
@@ -156,17 +161,20 @@ class image_converter:
                 return 180
             else:
                 return 270
-                
+
     
+    # template for links
     link1 = cv2.inRange(cv2.imread('link1.png', 1), (200, 200, 200), (255, 255, 255))
     link2 = cv2.inRange(cv2.imread('link2.png', 1), (200, 200, 200), (255, 255, 255))
     link3 = cv2.inRange(cv2.imread('link3.png', 1), (200, 200, 200), (255, 255, 255))  
     rows,cols = link1.shape
-
+    
+    #rotate image by a specific angle
     def rotate_im(im,angle):
         M = cv2.getRotationMatrix2D((cols/2,rows/2),angle,1)
         return cv2.warpAffine(im,M,(cols,rows))
-
+    
+    #find angle that minimizes chamfer error between rotated template and cropped link
     def find_angle(template,image,lower_blob,upper_blob,N_steps=200):
         image_inv = cv2.bitwise_not(image)
         image_dist = cv2.distanceTransform(image_inv,cv2.DIST_L2,cv2.DIST_MASK_5)
@@ -181,12 +189,15 @@ class image_converter:
                 min_dist = dist
         return min_angle*2*np.pi/360,min_dist
     
+    #run chamfer matching
     angle1,_ = find_angle(link1,link1_cropped,YBGR[0],YBGR[1])
+    #if angle is larger than pi, convert it into negative angle
     if angle1 > np.pi:
         angle1-=2*np.pi
-    angle2,_ = find_angle(link2,link2_cropped,YBGR[1],YBGR[2])
-    angle3,_ = find_angle(link3,link3_cropped,YBGR[2],YBGR[3])
     
+    #same for link 2 and 3
+    angle2,_ = find_angle(link2,link2_cropped,YBGR[1],YBGR[2])
+    angle3,_ = find_angle(link3,link3_cropped,YBGR[2],YBGR[3])    
     angle2 = angle2-angle1
     if angle2 > np.pi:
         angle2-=2*np.pi
@@ -194,21 +205,29 @@ class image_converter:
     if angle3 > np.pi:
         angle3-=2*np.pi
 
-    # change te value of self.joint.data to your estimated value from thew images once you have finalized the code
+    #change te value of self.joint.data to your estimated value from thew images once you have finalized the code
     self.joints = Float64MultiArray()
     self.joints.data = np.array([angle1,angle2,angle3])
     
+    
+    
+# __________________________FIND END-EFFECTOR POSITION_________________________________
+
+    #define matrix that carries out rotation and translation for a link
     def trans_mat(theta,a=3):
         return np.array([[np.cos(theta),-np.sin(theta),np.cos(theta)*a],
                                 [np.sin(theta),np.cos(theta),np.sin(theta)*a],
                                 [0,0,1]])
 
+    #get total transition matrix for an array of [t1,t2,t3], length of link is fixed to 3m
     def trans_mat_tot(theta):
         return np.dot(trans_mat(theta[0]+np.pi/2),np.dot(trans_mat(theta[1]),trans_mat(theta[2])))
-    
+
+    #extract position of end-effector out of transition matrix (component M[0,2] and M[1,2])
     def get_position(mat):
         return np.array([mat[0][2],mat[1][2]])
-        
+
+    #alternatively extract position of end-effector with red blob
     def calc_endeff(ybgr):
         ybgr[0][1] *=-1
         ybgr[1][1] *=-1
@@ -227,11 +246,15 @@ class image_converter:
     self.end_effector=Float64MultiArray()
     self.end_effector.data= x_e_image
 
+#___________________GET JACOBIAN AND MOVE END-EFFECTOR__________________
+
+    #x-position and y-position of end-effector given the joint angles (analytically)
     def xx(t1,t2,t3):
         return -3*(np.sin(t1)+np.sin(t1+t2)+np.sin(t1+t2+t3))
     def yy(t1,t2,t3):
         return 3*(np.cos(t1)+np.cos(t1+t2)+np.cos(t1+t2+t3))
-    
+
+    #define jacobian with x- and y-position
     def jacobian(t):
         c1 = np.cos(t[0])
         c12 = np.cos(t[0]+t[1])
@@ -242,37 +265,53 @@ class image_converter:
         return 3*np.array([[-c1-c12-c123,-c12-c123,-c123],
                                 [s1+s12+s123,s12+s123,s123]])
     
+    #get jacobian given the joint angles and calculate its pseudo-inverse
     J = jacobian(self.joints.data)
     J_inv = np.linalg.pinv(J)
     
-    # Publishing the desired trajectory on a topic named trajectory(for lab 3)
+    #Publishing the desired trajectory on a topic named trajectory(for lab 3)
     x_d = self.trajectory()    # getting the desired trajectory
-    self.trajectory_desired= Float64MultiArray()
+    self.trajectory_desired= Float64MultiArray()    
     self.trajectory_desired.data=x_d
-    dx = x_d - self.first_position
-    self.first_position = x_d
+    dx = x_d - self.first_position  #change in trajectory from on step to the next
+    self.first_position = x_d #update x(t-1)
     
+    #get time difference between to successive steps
     current_time = rospy.get_time()
     dt = current_time - self.first_time
     self.first_time = current_time
     
-    vel = (dx/dt)
-    q_dot = np.dot(J_inv,vel)
+    control = False
+    if control:
+        error = self.trajectory_desired.data - self.end_effector.data
+        derror_dt = (error - self.error_first)/dt
+        self.error_first = error
+        Kp = np.array([[0.15,0],
+                                    [0,0.15]])        
+        Kd = np.array([[0.01,0],
+                                    [0,0.01]])
+        k = np.dot(Kp,error)+np.dot(Kd,derror_dt)
+        q_dot = np.dot(J_inv,k)
+    else:
+        #time derivative of desired end-effector position and robot-parameters (joint angles)
+        vel = (dx/dt)
+        q_dot = np.dot(J_inv,vel) #dot-product of pseudo inverse jacobian and velocity of end-effector
     
-    q_d = self.joints.data+dt*q_dot
-    print([xx(*q_d),yy(*q_d)])
-    print(x_d)
-    
+    #desired joint angles is integral over q_dot
+    self.jointangle += dt*q_dot
+        
     # send control commands to joints (for lab 3)
     # q_d = [np.pi,0,0]
     self.joint1=Float64()
-    self.joint1.data= q_d[0]
+    self.joint1.data= self.jointangle[0]
     self.joint2=Float64()
-    self.joint2.data= q_d[1]
+    self.joint2.data= self.jointangle[1]
     self.joint3=Float64()
-    self.joint3.data= q_d[2]
-        
-
+    self.joint3.data= self.jointangle[2]
+    f = open('data.txt','a')
+    f.write('{}\t{}\t{}\t{}\n'.format(self.trajectory_desired.data[0],self.trajectory_desired.data[1],
+                                        self.end_effector.data[0],self.end_effector.data[1]))
+    f.close()
     # Publish the results
     try: 
       self.image_pub.publish(self.bridge.cv2_to_imgmsg(cv_image, "bgr8"))
@@ -283,6 +322,8 @@ class image_converter:
       self.robot_joint1_pub.publish(self.joint1)
       self.robot_joint2_pub.publish(self.joint2)
       self.robot_joint3_pub.publish(self.joint3)
+      rate = rospy.Rate(50)
+      rate.sleep()
     except CvBridgeError as e:
       print(e)
       
