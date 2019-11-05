@@ -385,10 +385,10 @@ gtest_main_LIB_DEPENDS:STATIC=general;-lpthread;general;gtest;
 hardware_interface_DIR:PATH=/opt/ros/melodic/share/hardware_interface/cmake
 
 //Value Computed by CMake
-ivr_lab_BINARY_DIR:STATIC=/home/kerim/catkin_ws/build/ivr_lab
+ivr_assignment_BINARY_DIR:STATIC=/home/kerim/catkin_ws/build/ivr_assignment
 
 //Value Computed by CMake
-ivr_lab_SOURCE_DIR:STATIC=/home/kerim/catkin_ws/src/ivr_lab
+ivr_assignment_SOURCE_DIR:STATIC=/home/kerim/catkin_ws/src/ivr_assignment
 
 //The directory containing a CMake configuration file for joint_state_controller.
 joint_state_controller_DIR:PATH=/opt/ros/melodic/share/joint_state_controller/cmake
